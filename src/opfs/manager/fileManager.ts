@@ -1,35 +1,65 @@
-import { v4 as uuidv4 } from 'uuid';
-import { parsefilePath } from '../utils/utils';
-import { opfsDirHandle } from '../utils/handle';
+import { v4 as uuidv4 } from "uuid";
+import { parsefilePath } from "../utils/utils";
+import { opfsDirHandle } from "../utils/handle";
+
+const opfsFileManagerCache = new Map<string, OPFSFlieManager>();
 
 export async function accessFile(path?: string): Promise<OPFSFlieManager> {
-    const opfsFileManager = new OPFSFlieManager(path);
-    await opfsFileManager.initHandle();
-    return opfsFileManager;
-} 
+  const pathToAccess = path ?? `flime-opfs/${uuidv4()}`;
+  if (opfsFileManagerCache.has(pathToAccess))
+    return opfsFileManagerCache.get(pathToAccess) as OPFSFlieManager;
+  const fileManager = new OPFSFlieManager(path);
+  await fileManager.initHandle();
+  opfsFileManagerCache.set(pathToAccess, fileManager);
+  return fileManager;
+}
 
 export class OPFSFlieManager {
-    private id: string;
-    private path: string;
-    private name: string;
-    private parent: string;
-    private parentHandle: FileSystemDirectoryHandle | null = null;
-    private handle: FileSystemFileHandle | null = null;
+  private _type: string = "file";
+  private _id: string;
+  private _path: string;
+  private _name: string;
+  private _parent: string;
+  private _parentHandle: FileSystemDirectoryHandle | null = null;
+  private _handle: FileSystemFileHandle | null = null;
 
-    constructor(path?:string) {
-        this.id = uuidv4();
-        this.path = path ?? `flime-opfs/${this.id}`;
-        ({ parent: this.parent, name: this.name } = parsefilePath(this.path));
-    }
+  constructor(path: string) {
+    this._id = uuidv4();
+    this._path = path;
+    ({ parent: this._parent, name: this._name } = parsefilePath(this._path));
+  }
 
-    public async initHandle(): Promise<OPFSFlieManager> {
-        !this.parentHandle && (this.parentHandle = await opfsDirHandle(this.parent));
-        !this.handle && (this.handle = await this.parentHandle?.getFileHandle(this.name));
-        return this;
-    }
+  public get type() {
+    return this._type;
+  }
 
-    public async write(content: BufferSource | ReadableStream<BufferSource>, at?: number) {
-        
+  public get id(): string {
+    return this._id;
+  }
 
-    }
+  public get path(): string {
+    return this._path;
+  }
+
+  public get name(): string {
+    return this._name;
+  }
+
+  public get handle(): FileSystemFileHandle | null {
+    return this._handle;
+  }
+
+  public async initHandle(): Promise<OPFSFlieManager> {
+    !this._parentHandle &&
+      (this._parentHandle = await opfsDirHandle(this._parent));
+    !this._handle &&
+      (this._handle = await this._parentHandle?.getFileHandle(this._name));
+    await createSyncAccessHandle(this);
+    return this;
+  }
+
+  public async write(
+    content: BufferSource | ReadableStream<BufferSource>,
+    at?: number
+  ) {}
 }
